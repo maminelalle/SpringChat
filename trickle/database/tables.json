@@ -1,0 +1,88 @@
+[
+  {
+    "name": "chat_user",
+    "fields": [
+      {
+        "name": "username",
+        "type": "text",
+        "description": "Unique username",
+        "options": null
+      },
+      {
+        "name": "avatar",
+        "type": "text",
+        "description": "Url to avatar image",
+        "options": null
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "description": "online, offline, busy",
+        "options": [
+          "online",
+          "offline",
+          "busy"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "chat_room",
+    "fields": [
+      {
+        "name": "name",
+        "type": "text",
+        "description": "Room name",
+        "options": null
+      },
+      {
+        "name": "type",
+        "type": "text",
+        "description": "public or private",
+        "options": [
+          "public",
+          "private"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "chat_message",
+    "fields": [
+      {
+        "name": "sender",
+        "type": "text",
+        "description": "Username of sender",
+        "options": null
+      },
+      {
+        "name": "content",
+        "type": "rich_text",
+        "description": "Message content (Long text for Base64 Audio)",
+        "options": null
+      },
+      {
+        "name": "room_id",
+        "type": "text",
+        "description": "ID of the room",
+        "options": null
+      },
+      {
+        "name": "type",
+        "type": "text",
+        "description": "Message type",
+        "options": [
+          "CHAT",
+          "JOIN",
+          "LEAVE"
+        ]
+      },
+      {
+        "name": "timestamp",
+        "type": "datetime",
+        "description": "Time of message",
+        "options": null
+      }
+    ]
+  }
+]
