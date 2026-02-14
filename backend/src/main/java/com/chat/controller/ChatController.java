@@ -13,6 +13,12 @@ import org.springframework.stereotype.Controller;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+/**
+ * ChatController - Groupe 9 : Spring Boot + WebSocket
+ * Sujet : "Éléments clés : ... @MessageMapping, SimpMessagingTemplate"
+ * - @MessageMapping : réception des messages STOMP envoyés par le client (/app/chat.sendMessage, /app/chat.addUser).
+ * - SimpMessagingTemplate : envoi des messages vers les clients (convertAndSend vers /topic/public ou /topic/room/{id}).
+ */
 @Controller
 public class ChatController {
 
@@ -30,7 +36,9 @@ public class ChatController {
         if (chatMessage.getTimestamp() == null) {
             chatMessage.setTimestamp(LocalDateTime.now());
         }
-        
+        if (chatMessage.getType() == null) {
+            chatMessage.setType(ChatMessage.MessageType.CHAT);
+        }
         // Sauvegarde BDD
         try {
             chatMessageRepository.save(chatMessage);

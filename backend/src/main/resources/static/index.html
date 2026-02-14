@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpringChat - Communication Temps Réel</title>
+    <meta name="description" content="Application de chat en temps réel simulant une architecture Spring Boot + WebSocket">
+    <meta name="keywords" content="chat, spring boot, websocket, react, simulation">
+
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/react@18/umd/react.production.min.js"></script>
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- WebSocket Clients -->
+    <script src="https://unpkg.com/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#64748b',
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://resource.trickle.so/vendor_lib/unpkg/lucide-static@0.516.0/font/lucide.css" rel="stylesheet">
+
+    <style type="text/tailwindcss">
+    @layer theme {
+        :root {
+            --primary-color: #3b82f6; /* Blue-500 */
+            --secondary-color: #64748b; /* Slate-500 */
+            --bg-light: #f8fafc;
+            --bg-dark: #0f172a;
+            --text-light: #1e293b;
+            --text-dark: #f1f5f9;
+        }
+        .dark {
+            --bg-primary: var(--bg-dark);
+            --text-primary: var(--text-dark);
+        }
+        .light {
+            --bg-primary: var(--bg-light);
+            --text-primary: var(--text-light);
+        }
+    }
+    
+    @layer components {
+        .btn-primary {
+            @apply bg-[var(--primary-color)] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed;
+        }
+        .input-field {
+            @apply w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--primary-color)] focus:outline-none transition-all;
+        }
+        .card {
+            @apply bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700;
+        }
+    }
+
+    body {
+        @apply bg-[var(--bg-light)] dark:bg-[var(--bg-dark)] text-[var(--text-light)] dark:text-[var(--text-dark)] transition-colors duration-200;
+    }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        @apply bg-transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+        @apply bg-gray-300 dark:bg-slate-600 rounded-full;
+    }
+    </style>
+    <script>
+        // Initialize Chart.js to avoid conflicts
+        const ChartJS = window.Chart;
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Utils -->
+    <script type="text/babel" src="utils/db.js"></script>
+    <script type="text/babel" src="utils/time.js"></script>
+
+    <!-- Components -->
+    <script type="text/babel" src="components/ThemeToggle.js"></script>
+    <script type="text/babel" src="components/Avatar.js"></script>
+    <script type="text/babel" src="components/Alert.js"></script>
+    <script type="text/babel" src="components/Toast.js"></script>
+    <script type="text/babel" src="components/EmojiPicker.js"></script>
+    <script type="text/babel" src="components/CreateRoomModal.js"></script>
+    <script type="text/babel" src="components/PrivateChatPopup.js"></script>
+    
+    <!-- Pages/Layouts -->
+    <script type="text/babel" src="components/Login.js"></script>
+    <script type="text/babel" src="components/Home.js"></script>
+    <script type="text/babel" src="components/ChatLayout.js"></script>
+    <script type="text/babel" src="components/Sidebar.js"></script>
+    <script type="text/babel" src="components/ChatArea.js"></script>
+
+    <!-- App Entry -->
+    <script type="text/babel" src="app.js"></script>
+</body>
+</html>

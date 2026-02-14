@@ -22,6 +22,21 @@ public class RoomController {
         return chatRoomRepository.findAll();
     }
 
+    /** Obtient ou crée une salle privée entre deux utilisateurs (ordre des noms normalisé). */
+    @GetMapping("/private")
+    public ResponseEntity<ChatRoom> getOrCreatePrivateRoom(
+            @RequestParam String me,
+            @RequestParam String with) {
+        if (me == null || me.isBlank() || with == null || with.isBlank() || me.equals(with)) {
+            return ResponseEntity.badRequest().build();
+        }
+        String[] sorted = new java.util.TreeSet<>(java.util.List.of(me.trim(), with.trim())).toArray(new String[0]);
+        String roomName = "private_" + sorted[0] + "_" + sorted[1];
+        return chatRoomRepository.findByNameAndType(roomName, "private")
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.ok(chatRoomRepository.save(new ChatRoom(roomName, "private"))));
+    }
+
     @PostMapping
     public ChatRoom createRoom(@RequestBody ChatRoom room) {
         if (room.getType() == null) {

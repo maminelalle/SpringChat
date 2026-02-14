@@ -1,0 +1,450 @@
+function ChatArea({ currentUser, currentRoom, messages, onlineUsersCount, onSendMessage, onDeleteMessage, isTyping }) {
+    const ChatService = window.ChatService;
+    const [newMessage, setNewMessage] = React.useState('');
+    const [searchTerm, setSearchTerm] = React.useState('');
+    const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+    const [showEmojiPicker, setShowEmojiPicker] = React.useState(false);
+    const [isRecording, setIsRecording] = React.useState(false);
+    const [recordingSeconds, setRecordingSeconds] = React.useState(0);
+    const [voiceUploading, setVoiceUploading] = React.useState(false);
+    const [fileUploading, setFileUploading] = React.useState(false);
+    
+    const messagesEndRef = React.useRef(null);
+    const fileInputRef = React.useRef(null);
+    const mediaRecorderRef = React.useRef(null);
+    const chunksRef = React.useRef([]);
+    const recordingTimerRef = React.useRef(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    React.useEffect(() => {
+        scrollToBottom();
+    }, [messages, currentRoom, isTyping]);
+
+    React.useEffect(() => {
+        if (isRecording) {
+            recordingTimerRef.current = setInterval(() => setRecordingSeconds(s => s + 1), 1000);
+        } else {
+            setRecordingSeconds(0);
+        }
+        return () => { if (recordingTimerRef.current) clearInterval(recordingTimerRef.current); };
+    }, [isRecording]); 
+
+    // --- Sending Logic ---
+    const handleSend = (e) => {
+        e.preventDefault();
+        if (!newMessage.trim()) return;
+        onSendMessage(newMessage);
+        setNewMessage('');
+        setShowEmojiPicker(false);
+    };
+
+    const handleEmojiSelect = (emoji) => {
+        setNewMessage(prev => prev + emoji);
+    };
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) {
+            alert("Fichier trop volumineux (max 10 Mo).");
+            e.target.value = null;
+            return;
+        }
+        const isImage = file.type.startsWith("image/");
+        const isPdf = file.type === "application/pdf";
+        if (isImage || isPdf) {
+            setFileUploading(true);
+            try {
+                const { id, type } = await ChatService.uploadFile(file);
+                onSendMessage((type === "image" ? "IMAGE:" : "PDF:") + id);
+            } catch (err) {
+                console.error(err);
+                alert(err.message || "Envoi du fichier échoué.");
+            } finally {
+                setFileUploading(false);
+            }
+        } else {
+            const fileMessage = `📎 Fichier partagé: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            onSendMessage(fileMessage);
+        }
+        e.target.value = null;
+    };
+
+    const startVoiceRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+            const recorder = new MediaRecorder(stream);
+            chunksRef.current = [];
+            recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+            recorder.onstop = async () => {
+                stream.getTracks().forEach(t => t.stop());
+                if (chunksRef.current.length === 0) return;
+                const blob = new Blob(chunksRef.current, { type: mime.split(';')[0] });
+                setVoiceUploading(true);
+                try {
+                    const id = await ChatService.uploadVoice(blob);
+                    onSendMessage('VOICE:' + id);
+                } catch (err) {
+                    console.error(err);
+                    alert("Envoi du message vocal échoué.");
+                } finally {
+                    setVoiceUploading(false);
+                }
+            };
+            mediaRecorderRef.current = recorder;
+            recorder.start(200);
+            setIsRecording(true);
+        } catch (err) {
+            console.error(err);
+            alert("Accès au micro refusé ou non disponible.");
+        }
+    };
+
+    const stopVoiceRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+            mediaRecorderRef.current = null;
+            setIsRecording(false);
+        }
+    };
+
+    const toggleVoiceRecording = () => {
+        if (isRecording) stopVoiceRecording();
+        else startVoiceRecording();
+    };
+    const onMicPointerDown = (e) => {
+        e.preventDefault();
+        if (!isRecording && !voiceUploading) startVoiceRecording();
+    };
+    const onMicPointerUp = (e) => {
+        e.preventDefault();
+        if (isRecording) stopVoiceRecording();
+    };
+    const onMicPointerLeave = (e) => {
+        if (isRecording) stopVoiceRecording();
+    };
+    const recordingTimeStr = `${Math.floor(recordingSeconds / 60)}:${(recordingSeconds % 60).toString().padStart(2, '0')}`;
+
+    const filteredMessages = messages.filter(msg => {
+        const content = msg.content || '';
+        const sender = msg.sender || '';
+        return content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               sender.toLowerCase().includes(searchTerm.toLowerCase());
+    });
+
+    // --- Render Logic ---
+    const renderMessageContent = (msg) => {
+        if (!msg.content) return null;
+
+        // Message vocal (VOICE:id)
+        if (msg.content.startsWith('VOICE:')) {
+            const id = msg.content.replace('VOICE:', '').trim();
+            if (!id) return <span className="text-xs italic opacity-70">Message vocal</span>;
+            const voiceUrl = ChatService.getVoiceUrl(id);
+            return (
+                <div className="flex items-center gap-3 pr-2 min-w-[200px]">
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <div className="icon-mic text-lg"></div>
+                    </div>
+                    <audio controls src={voiceUrl} className="max-w-full h-9" style={{ maxWidth: '240px' }} />
+                </div>
+            );
+        }
+        if (msg.content.startsWith('VOICE::') || msg.content.startsWith('🎤 Message Vocal')) {
+            return (
+                <div className="flex items-center gap-3 pr-2 min-w-[150px]">
+                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center opacity-50">
+                        <div className="icon-mic-off text-sm"></div>
+                    </div>
+                    <span className="text-xs opacity-70 italic">Message vocal</span>
+                </div>
+            );
+        }
+
+        if (msg.content.startsWith('IMAGE:')) {
+            const id = msg.content.replace('IMAGE:', '').trim();
+            if (!id) return null;
+            const url = ChatService.getFileUrl(id);
+            const downloadUrl = ChatService.getFileUrl(id, true);
+            return (
+                <div className="flex flex-col gap-2 pr-2">
+                    <img src={url} alt="Image partagée" className="max-w-full max-h-64 rounded-lg object-contain border border-gray-200 dark:border-slate-600" />
+                    <a href={downloadUrl} download target="_blank" rel="noopener noreferrer" className="text-xs underline text-blue-500 hover:text-blue-600 flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Télécharger l&apos;image
+                    </a>
+                </div>
+            );
+        }
+
+        if (msg.content.startsWith('PDF:')) {
+            const id = msg.content.replace('PDF:', '').trim();
+            if (!id) return null;
+            const url = ChatService.getFileUrl(id);
+            const downloadUrl = ChatService.getFileUrl(id, true);
+            return (
+                <div className="flex items-center gap-3 pr-2">
+                    <div className="w-12 h-12 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                        <span className="text-red-600 dark:text-red-400 font-bold text-lg">PDF</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="font-medium underline text-blue-500 hover:text-blue-600">Ouvrir le PDF</a>
+                        <a href={downloadUrl} download target="_blank" rel="noopener noreferrer" className="text-xs underline text-gray-500 dark:text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Télécharger
+                        </a>
+                    </div>
+                </div>
+            );
+        }
+
+        const isFile = msg.content.startsWith('📎 Fichier partagé:');
+        if (isFile) {
+            return (
+                <div className="flex items-center gap-3 pr-2">
+                    <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <div className="icon-file text-xl"></div>
+                    </div>
+                    <div>
+                        <div className="font-medium underline hover:text-blue-100 cursor-pointer">{msg.content.replace('📎 Fichier partagé: ', '').split('(')[0]}</div>
+                        <div className="text-xs opacity-70">Fichier partagé (ancien format)</div>
+                    </div>
+                </div>
+            );
+        }
+
+        return msg.content;
+    };
+
+    if (!currentRoom) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 dark:bg-slate-900 text-gray-500 dark:text-gray-400 transition-colors duration-300">
+                <div className="w-24 h-24 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                    <div className="icon-message-square text-4xl opacity-50"></div>
+                </div>
+                <h3 className="text-xl font-medium mb-2">Sélectionnez une salle</h3>
+                <p>Choisissez une salle dans la barre latérale pour commencer à discuter.</p>
+            </div>
+        );
+    }
+
+    let roomDisplayName = currentRoom.name;
+    let isPrivate = currentRoom.type === 'private';
+    
+    if (isPrivate && currentRoom.name.startsWith('private_')) {
+        // Format du nom: private_user1_user2
+        const parts = currentRoom.name.split('_');
+        // On récupère les utilisateurs (index 1 et 2)
+        const users = parts.slice(1); 
+        const otherUser = users.find(u => u !== currentUser.username) || users[0];
+        // Si on a trouvé un autre utilisateur, on l'affiche, sinon on garde le nom par défaut
+        if (otherUser) {
+            roomDisplayName = otherUser;
+        }
+    }
+
+    return (
+        <div className="flex-1 flex flex-col h-full bg-white dark:bg-slate-900 relative transition-colors duration-300">
+            {/* Header */}
+            <div className="h-16 border-b border-gray-200 dark:border-slate-700 flex items-center px-6 justify-between flex-shrink-0 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm z-10">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                        <div className={`icon-${isPrivate ? 'user' : 'hash'} text-xl`}></div>
+                    </div>
+                    <div>
+                        <h2 className="font-bold text-gray-900 dark:text-white">
+                            {roomDisplayName}
+                        </h2>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                            <div className="icon-lock w-3 h-3"></div>
+                            {isPrivate ? 'Message Privé' : 'Canal Public'}
+                        </span>
+                    </div>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                    <div className={`flex items-center bg-gray-100 dark:bg-slate-800 rounded-lg px-2 transition-all ${isSearchOpen ? 'w-48' : 'w-8'}`}>
+                        <button 
+                            onClick={() => {
+                                setIsSearchOpen(!isSearchOpen);
+                                if(isSearchOpen) setSearchTerm('');
+                            }}
+                            className="p-1 text-gray-500 hover:text-blue-500"
+                        >
+                            <div className="icon-search w-4 h-4"></div>
+                        </button>
+                        {isSearchOpen && (
+                            <input 
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Chercher..."
+                                className="w-full bg-transparent border-none focus:ring-0 text-sm text-gray-700 dark:text-gray-200 px-2 py-1"
+                                autoFocus
+                            />
+                        )}
+                    </div>
+
+                    <div className="hidden sm:flex items-center gap-2 text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-slate-800 px-3 py-1 rounded-full text-xs font-medium">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        {onlineUsersCount} en ligne
+                    </div>
+                </div>
+            </div>
+
+            {/* Messages List */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[url('https://www.transparenttextures.com/patterns/subtle-dark-vertical.png')] dark:bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]">
+                {messages.length === 0 ? (
+                    <div className="text-center py-20">
+                        <div className="w-20 h-20 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                             <div className="icon-message-circle text-4xl text-gray-400"></div>
+                        </div>
+                        <p className="text-gray-500 dark:text-gray-400 font-medium">Aucun message pour le moment.</p>
+                        <p className="text-sm text-gray-400">Soyez le premier à envoyer un message ! 👋</p>
+                    </div>
+                ) : (
+                    filteredMessages.map((msg) => {
+                        const isMe = msg.sender === currentUser.username;
+                        const isSystem = msg.type !== 'CHAT';
+
+                        if (isSystem) {
+                            return (
+                                <div key={msg.id} className="flex justify-center my-4">
+                                    <span className="bg-gray-100/80 dark:bg-slate-800/80 backdrop-blur-sm text-gray-500 dark:text-gray-400 text-xs py-1 px-4 rounded-full flex items-center gap-2 border border-gray-200 dark:border-slate-700 shadow-sm">
+                                        <div className={`icon-${msg.type === 'JOIN' ? 'log-in' : 'log-out'} w-3 h-3`}></div>
+                                        {msg.sender} {msg.type === 'JOIN' ? 'a rejoint' : 'a quitté'} le chat
+                                    </span>
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''} group animate-fade-in-up items-end`}>
+                                <Avatar name={msg.sender} size="sm" />
+                                <div className={`flex flex-col max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} relative group`}>
+                                    
+                                    {/* Delete Button (Only for me, visible on hover) */}
+                                    {isMe && (
+                                        <button 
+                                            onClick={() => {
+                                                if(confirm('Supprimer ce message ?')) onDeleteMessage(msg.id);
+                                            }}
+                                            className="absolute -top-3 right-0 opacity-0 group-hover:opacity-100 transition-opacity bg-red-100 dark:bg-red-900/50 text-red-500 p-1 rounded-full shadow-sm z-10"
+                                            title="Supprimer"
+                                        >
+                                            <div className="icon-trash-2 w-3 h-3"></div>
+                                        </button>
+                                    )}
+
+                                    <div className="flex items-center gap-2 mb-1 px-1">
+                                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                            {msg.sender}
+                                        </span>
+                                        <span className="text-[10px] text-gray-400">
+                                            {formatTime(msg.timestamp)}
+                                        </span>
+                                    </div>
+                                    <div className={`
+                                        py-2.5 px-4 rounded-2xl text-sm leading-relaxed shadow-md transition-all relative
+                                        ${isMe 
+                                            ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-none' 
+                                            : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 rounded-tl-none border border-gray-100 dark:border-slate-700'}
+                                    `}>
+                                        {renderMessageContent(msg)}
+                                        
+                                        {/* Ticks */}
+                                        {isMe && (
+                                            <div className="absolute -bottom-5 right-0 text-xs text-gray-400 flex items-center gap-1">
+                                                <span className="text-[10px]">Lu</span>
+                                                <div className="icon-check-check w-3 h-3 text-blue-500"></div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+                
+                {isTyping && (
+                    <div className="flex gap-3 items-end animate-pulse ml-2">
+                         <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center">
+                             <div className="icon-more-horizontal text-gray-500"></div>
+                         </div>
+                         <div className="text-xs text-gray-500 italic">Quelqu'un écrit...</div>
+                    </div>
+                )}
+                
+                <div ref={messagesEndRef} />
+            </div>
+
+            {/* Emoji Picker */}
+            {showEmojiPicker && (
+                <EmojiPicker 
+                    onSelect={handleEmojiSelect} 
+                    onClose={() => setShowEmojiPicker(false)} 
+                />
+            )}
+
+            {/* Barre d'enregistrement vocal (style WhatsApp) */}
+            {isRecording && (
+                <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800 flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
+                        <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+                        <span className="font-medium">Enregistrement {recordingTimeStr}</span>
+                    </div>
+                    <button type="button" onClick={stopVoiceRecording}
+                        className="px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-xl hover:bg-red-600">
+                        Envoyer le vocal
+                    </button>
+                </div>
+            )}
+            {/* Input Area */}
+            <div className="p-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex-shrink-0 z-20">
+                <form onSubmit={handleSend} className="flex gap-2 items-center">
+                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={fileUploading}
+                        className="p-3 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-colors disabled:opacity-50"
+                        title="Image ou PDF (affichage + téléchargement)">
+                        <div className="icon-paperclip text-xl"></div>
+                    </button>
+                    <button type="button" disabled={voiceUploading}
+                        onPointerDown={onMicPointerDown}
+                        onPointerUp={onMicPointerUp}
+                        onPointerLeave={onMicPointerLeave}
+                        onClick={(e) => { e.preventDefault(); if (!isRecording) toggleVoiceRecording(); }}
+                        className={`p-3 rounded-full transition-colors select-none ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500'}`}
+                        title="Tenir pour enregistrer un vocal (ou cliquer 2 fois)">
+                        <div className="icon-mic text-xl"></div>
+                    </button>
+                    <div className="flex-1 relative">
+                        <input
+                            type="text"
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder={`Message à #${roomDisplayName}`}
+                            className="w-full pl-5 pr-12 py-3.5 rounded-full border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-[var(--primary-color)] focus:outline-none text-gray-900 dark:text-white transition-all"
+                        />
+                        <button 
+                            type="button" 
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-yellow-500 transition-colors"
+                        >
+                            <div className="icon-smile text-xl"></div>
+                        </button>
+                    </div>
+
+                    <button 
+                        type="submit"
+                        disabled={!newMessage.trim()}
+                        className="p-3.5 bg-[var(--primary-color)] text-white rounded-full hover:opacity-90 transition-all shadow-md hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:scale-100"
+                    >
+                        <div className="icon-send-horizontal text-xl"></div>
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+}

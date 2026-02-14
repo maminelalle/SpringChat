@@ -1,3 +1,0 @@
-When using Babel Standalone with multiple files:
-- Variables defined in one file are not automatically available in others unless attached to `window`.
-- Even when attached to `window`, it is safer to access them via `window.VariableName` or assign `const VariableName = window.VariableName;` at the start of the component/function to avoid `ReferenceError` in strict mode or specific browser environments.

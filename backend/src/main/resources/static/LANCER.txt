@@ -1,0 +1,46 @@
+========================================
+  COMMENT EXECUTER LE FRONTEND
+========================================
+
+Methode recommandee (tout-en-un)
+--------------------------------
+Le frontend est SERVI par le backend. Tu n'as rien a lancer a part.
+
+1. Lancer le backend (dans un terminal) :
+   cd c:\Users\lalle\Desktop\SpringChat\backend
+   .\run.ps1
+
+2. Ouvrir le navigateur et aller sur :
+   http://localhost:8080
+
+   -> La page d'accueil SpringChat s'affiche. C'est le frontend.
+
+Aucune commande supplementaire pour le frontend.
+
+
+Methode optionnelle (frontend seul avec serveur local)
+-----------------------------------------------------
+Si tu veux modifier les fichiers dans frontend/ et recharger sans
+redemarrer le backend :
+
+1. Le backend doit quand meme tourner (pour l'API et le WebSocket) :
+   cd c:\Users\lalle\Desktop\SpringChat\backend
+   .\run.ps1
+
+2. Dans un AUTRE terminal, servir le dossier frontend (Node.js requis) :
+   cd c:\Users\lalle\Desktop\SpringChat\frontend
+   npx serve -l 3000
+
+3. Ouvrir : http://localhost:3000
+
+   Les appels API/WebSocket iront vers le backend (8080) si le frontend
+   est configure pour (voir utils/db.js).
+
+
+Ouvrir index.html directement
+-----------------------------
+Double-clic sur frontend/index.html ouvre la page, mais la connexion
+WebSocket peut echouer (origine file://). Preferer http://localhost:8080
+apres avoir lance le backend.
+
+========================================

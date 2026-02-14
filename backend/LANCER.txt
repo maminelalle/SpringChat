@@ -1,0 +1,28 @@
+========================================
+  COMMANDES POUR LANCER LE BACKEND
+========================================
+
+1. Ouvrir PowerShell (ou CMD).
+
+2. Aller dans le dossier backend :
+   cd c:\Users\lalle\Desktop\SpringChat\backend
+
+3. Lancer l'application (une seule commande) :
+   .\run.ps1
+
+   -> Le script libere automatiquement le port 8080 si besoin.
+   -> Il utilise Maven installe dans le dossier .maven (pas besoin d'installer Maven).
+
+4. Ouvrir le navigateur : http://localhost:8080
+
+5. Pour arreter : Ctrl+C dans le terminal.
+
+----------------------------------------
+Si "port 8080 deja utilise" persiste :
+----------------------------------------
+Executer d'abord (PowerShell en administrateur si besoin) :
+   Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+
+Puis relancer : .\run.ps1
+
+========================================
